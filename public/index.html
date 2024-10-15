@@ -131,11 +131,20 @@
             }
         });
 
+        messageInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault(); // Prevent form submission if inside a form
+                sendBtn.click(); // Trigger the send button click event
+            }
+        });
+
         // Handle private messaging
         socket.on("private-message", (message) => {
+            // Append the private message only if it is from another user
             if (privateChatUser && privateChatUser.username === message.username) {
                 appendPrivateMessage(message);
             } else {
+                // If the user is not in a private chat with this user, save the unread message
                 if (!unreadMessages[message.username]) {
                     unreadMessages[message.username] = [];
                 }
@@ -170,7 +179,12 @@
             privateMessages.scrollTop = privateMessages.scrollHeight; // Auto-scroll
         }
 
-
+        privateMessageInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault(); // Prevent form submission if inside a form
+                privateSendBtn.click(); // Trigger the send button click event
+            }
+        });
 
         function showNotification(username) {
             const userDiv = Array.from(userList.children).find(
