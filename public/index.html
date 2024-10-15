@@ -190,16 +190,23 @@
         }
 
         function openPrivateChat(user) {
-            privateChat.style.display = "flex";
-            privateChatUser = user;
-            privateMessages.innerHTML = '';
-            document.getElementById("private-chat-header").innerText = `Chat with ${user.username}`;
+            if (privateChat.style.display === "flex" && privateChatUser?.username === user.username) {
+                // If the private chat is already open for this user, hide it
+                privateChat.style.display = "none";
+                privateChatUser = null; // Clear the current private chat user
+            } else {
+                // Show private chat for the selected user
+                privateChat.style.display = "flex";
+                privateChatUser = user;
+                privateMessages.innerHTML = '';
+                document.getElementById("private-chat-header").innerText = `Chat with ${user.username}`;
 
-            // Display unread messages and clear them
-            if (unreadMessages[user.username]) {
-                unreadMessages[user.username].forEach((msg) => appendPrivateMessage(msg));
-                unreadMessages[user.username] = []; // Clear unread messages after displaying
-                removeNotificationBadge(user.username); // Remove the notification badge
+                // Display unread messages and clear them
+                if (unreadMessages[user.username]) {
+                    unreadMessages[user.username].forEach((msg) => appendPrivateMessage(msg));
+                    unreadMessages[user.username] = []; // Clear unread messages after displaying
+                    removeNotificationBadge(user.username); // Remove the notification badge
+                }
             }
         }
 
