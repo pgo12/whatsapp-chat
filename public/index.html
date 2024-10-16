@@ -370,7 +370,7 @@
         });
 
         socket.on("typing", (data) => {
-            typingIndicator.innerText = `${data} is typing...`;
+            typingIndicator.innerText = `${data.username} is typing...`;
         });
 
         socket.on("stop-typing", () => {
