@@ -139,19 +139,23 @@
         });
 
         // Handle private messaging
+        // Listen for private messages
         socket.on("private-message", (message) => {
-            // Append the private message only if it is from another user
+            // Check if the private chat is currently open with this user
             if (privateChatUser && privateChatUser.username === message.username) {
-                appendPrivateMessage(message);
+                appendPrivateMessage(message); // Directly display the message
             } else {
-                // If the user is not in a private chat with this user, save the unread message
+                // Store as an unread message if the private chat is not open
                 if (!unreadMessages[message.username]) {
                     unreadMessages[message.username] = [];
                 }
                 unreadMessages[message.username].push(message);
+
+                // Show notification badge or update existing badge
                 showNotification(message.username);
             }
         });
+
 
         function appendPrivateMessage(message) {
             const messageDiv = document.createElement("div");
