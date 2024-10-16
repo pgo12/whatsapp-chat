@@ -7,25 +7,23 @@
     <title>WhatsApp-Style Chat App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Hide scrollbar for messages */
-
         .notification {
             background-color: #f0f0f0;
-            /* Light grey background */
             border-radius: 8px;
-            /* Rounded corners */
             padding: 10px;
-            /* Padding around the text */
             margin: 5px;
-            /* Space between notifications */
             font-size: 14px;
-            /* Font size for the notification */
             text-align: center;
-            /* Centered text */
         }
 
         .meta {
             font-size: 10px;
+        }
+
+        .image-message {
+            max-width: 200px;
+            border-radius: 8px;
+            margin-top: 5px;
         }
     </style>
 </head>
@@ -56,6 +54,8 @@
         <div id="input-container" class="flex p-2 bg-gray-100 border-t border-gray-200">
             <input id="message" placeholder="Type a message..."
                 class="flex-1 p-2 border border-gray-300 rounded-full mr-2 text-sm outline-none">
+            <input type="file" id="image-upload" class="hidden" accept="image/*">
+            <button id="imageBtn" class="px-2 text-sm text-gray-600 hover:text-gray-800">📷</button>
             <button id="sendBtn"
                 class="px-4 py-2 bg-[#075e54] text-white rounded-full hover:bg-[#128c7e] focus:outline-none">Send</button>
         </div>
@@ -70,6 +70,9 @@
         const userList = document.getElementById("user-list");
         const typingIndicator = document.getElementById("typing-indicator");
 
+        const imageBtn = document.getElementById("imageBtn");
+        const imageUpload = document.getElementById("image-upload");
+
         const privateChat = document.getElementById("private-chat");
         const privateMessages = document.getElementById("private-messages");
         const privateMessageInput = document.getElementById("private-message");
@@ -77,85 +80,140 @@
 
         let username;
         let privateChatUser;
-        let unreadMessages = {}; // Track unread private messages by username
 
-        // Prompt for username
         while (!username) {
             username = prompt("Please enter your username:");
         }
 
         socket.emit("new-user", username);
 
-        // Listen for messages
         socket.on("message", (message) => {
             const messageDiv = document.createElement("div");
             messageDiv.classList.add("message");
 
+            const isSentByUser = message.username === username; // Check if the message is sent by the current user
+
+            // Create the meta element for message metadata
+            const meta = document.createElement("span");
+            meta.classList.add("meta");
+            meta.innerText = `${message.username} • ${message.timestamp}`;
+
+            // Handle notification messages
             if (message.type === "notification") {
                 messageDiv.innerText = message.text;
                 messageDiv.style.textAlign = "center";
                 messageDiv.style.fontStyle = "italic";
                 messageDiv.style.color = "gray";
-            } else {
+            }
+            // Handle image messages
+            else if (message.type === "image") {
+                const img = document.createElement("img");
+                img.src = message.image;
+                img.classList.add("image-message");
+
+                const downloadLink = document.createElement("a");
+                downloadLink.href = message.image;
+                downloadLink.download = `image_${message.timestamp}.png`;
+                downloadLink.appendChild(img);
+
                 const p = document.createElement("p");
-                const meta = document.createElement("span");
+                p.appendChild(downloadLink);
 
+                // Apply classes based on message sender
+                const classesToAdd = isSentByUser ?
+                    ["bg-[#dcf8c6]", "self-end", "rounded-tl-lg", "max-w-[70%]", "ml-auto"] :
+                    ["bg-white", "self-start", "rounded-tr-lg", "shadow-sm", "max-w-[70%]"];
+
+                messageDiv.classList.add(...classesToAdd, "m-2", "p-2", "rounded-lg", "text-sm");
+
+                // Create and append the unsend button only for the user
+                if (isSentByUser) {
+                    const unsendBtn = document.createElement("button");
+                    unsendBtn.innerText = "Unsend";
+                    unsendBtn.className = "text-red-500 text-xs ml-2 cursor-pointer";
+                    unsendBtn.onclick = () => {
+                        socket.emit("unsend-message", { timestamp: message.timestamp, type: "image" });
+                        messageDiv.remove(); // Remove from the UI
+                    };
+                    p.appendChild(unsendBtn);
+                }
+
+                messageDiv.appendChild(p);
+                messageDiv.appendChild(meta);
+            }
+            // Handle text messages
+            else {
+                const p = document.createElement("p");
                 p.innerText = message.text;
-                meta.classList.add("meta");
-                meta.innerText = `${message.username} • ${message.timestamp}`;
 
-                const isSent = message.username === username;
+                // Apply classes based on message sender
+                const classesToAdd = isSentByUser ?
+                    ["bg-[#dcf8c6]", "self-end", "rounded-tl-lg"] :
+                    ["bg-white", "self-start", "rounded-tr-lg", "shadow-sm"];
 
-                const sentClasses = ["bg-[#dcf8c6]", "self-end", "rounded-tl-lg"];
-                const receivedClasses = ["bg-white", "self-start", "rounded-tr-lg", "shadow-sm"];
+                messageDiv.classList.add(...classesToAdd, "m-2", "p-2", "rounded-lg", "max-w-[80%]", "text-sm", "relative", "word-break");
 
-                const classesToAdd = isSent ? sentClasses : receivedClasses;
-                messageDiv.classList.add(...classesToAdd);
+                // Create and append the unsend button only for the user
+                if (isSentByUser) {
+                    const unsendBtn = document.createElement("button");
+                    unsendBtn.innerText = "Unsend";
+                    unsendBtn.className = "text-red-500 text-xs ml-2 cursor-pointer";
+                    unsendBtn.onclick = () => {
+                        socket.emit("unsend-message", { timestamp: message.timestamp, type: "text" });
+                        messageDiv.remove(); // Remove from the UI
+                    };
+                    p.appendChild(unsendBtn);
+                }
 
-                messageDiv.classList.add("m-2", "p-2", "rounded-lg", "max-w-[80%]", "text-sm", "relative", "word-break");
                 messageDiv.appendChild(p);
                 messageDiv.appendChild(meta);
             }
 
             messages.appendChild(messageDiv);
-            messages.scrollTop = messages.scrollHeight; // Auto-scroll
+            messages.scrollTop = messages.scrollHeight;
         });
 
+
+        socket.on("remove-message", (timestamp) => {
+            const allMessages = document.querySelectorAll('.message');
+            allMessages.forEach(msg => {
+                const meta = msg.querySelector('.meta');
+                if (meta && meta.innerText.includes(timestamp)) {
+                    msg.remove();
+                }
+            });
+        });
 
         // Send message
         sendBtn.addEventListener("click", () => {
             const text = messageInput.value;
             if (text) {
-                socket.emit("user-message", { text: text, type: "user-message" });
-                messageInput.value = ""; // Clear input
+                const messageData = { text: text, type: "user-message" };
+                socket.emit("user-message", messageData);
+                messageInput.value = "";
             }
         });
 
         messageInput.addEventListener("keydown", (event) => {
             if (event.key === "Enter") {
-                event.preventDefault(); // Prevent form submission if inside a form
-                sendBtn.click(); // Trigger the send button click event
+                event.preventDefault();
+                sendBtn.click();
             }
         });
 
         // Handle private messaging
-        // Listen for private messages
         socket.on("private-message", (message) => {
-            // Check if the private chat is currently open with this user
             if (privateChatUser && privateChatUser.username === message.username) {
-                appendPrivateMessage(message); // Directly display the message
+                appendPrivateMessage(message);
             } else {
-                // Store as an unread message if the private chat is not open
                 if (!unreadMessages[message.username]) {
                     unreadMessages[message.username] = [];
                 }
                 unreadMessages[message.username].push(message);
 
-                // Show notification badge or update existing badge
                 showNotification(message.username);
             }
         });
-
 
         function appendPrivateMessage(message) {
             const messageDiv = document.createElement("div");
@@ -166,27 +224,24 @@
             meta.classList.add("text-xs", "text-gray-500", "text-right", "mt-1");
             meta.innerText = `${message.username} • ${message.timestamp}`;
 
-            // Check if the message is sent by the current user
             const isSentByUser = message.username === username;
 
-            // Define classes for sent and received messages
-            const sentClasses = ["bg-[#dcf8c6]", "self-end", "rounded-tl-lg", "max-w-[70%]", "ml-auto"]; // Sent message styles
-            const receivedClasses = ["bg-white", "self-start", "rounded-tr-lg", "shadow-sm", "max-w-[70%]"]; // Received message styles
+            const sentClasses = ["bg-[#dcf8c6]", "self-end", "rounded-tl-lg", "max-w-[70%]", "ml-auto"];
+            const receivedClasses = ["bg-white", "self-start", "rounded-tr-lg", "shadow-sm", "max-w-[70%]"];
 
-            // Choose classes based on who sent the message
             const classesToAdd = isSentByUser ? sentClasses : receivedClasses;
             messageDiv.classList.add(...classesToAdd, "m-2", "p-2", "rounded-lg", "text-sm");
 
             messageDiv.appendChild(p);
             messageDiv.appendChild(meta);
             privateMessages.appendChild(messageDiv);
-            privateMessages.scrollTop = privateMessages.scrollHeight; // Auto-scroll
+            privateMessages.scrollTop = privateMessages.scrollHeight;
         }
 
         privateMessageInput.addEventListener("keydown", (event) => {
             if (event.key === "Enter") {
-                event.preventDefault(); // Prevent form submission if inside a form
-                privateSendBtn.click(); // Trigger the send button click event
+                event.preventDefault();
+                privateSendBtn.click();
             }
         });
 
@@ -209,24 +264,23 @@
 
         function openPrivateChat(user) {
             if (privateChat.style.display === "flex" && privateChatUser?.username === user.username) {
-                // If the private chat is already open for this user, hide it
                 privateChat.style.display = "none";
-                privateChatUser = null; // Clear the current private chat user
             } else {
-                // Show private chat for the selected user
                 privateChat.style.display = "flex";
-                privateChatUser = user;
-                privateMessages.innerHTML = '';
-                document.getElementById("private-chat-header").innerText = `Chat with ${user.username}`;
 
-                // Display unread messages and clear them
-                if (unreadMessages[user.username]) {
-                    unreadMessages[user.username].forEach((msg) => appendPrivateMessage(msg));
-                    unreadMessages[user.username] = []; // Clear unread messages after displaying
-                    removeNotificationBadge(user.username); // Remove the notification badge
+                if (!privateChatUser || privateChatUser.username !== user.username) {
+                    privateChatUser = user;
+                    document.getElementById("private-chat-header").innerText = `Chat with ${user.username}`;
+
+                    if (unreadMessages[user.username]) {
+                        unreadMessages[user.username].forEach((msg) => appendPrivateMessage(msg));
+                        unreadMessages[user.username] = [];
+                        removeNotificationBadge(user.username);
+                    }
                 }
             }
         }
+
 
         function removeNotificationBadge(username) {
             const userDiv = Array.from(userList.children).find((div) =>
@@ -236,35 +290,47 @@
             if (userDiv) {
                 const badge = userDiv.querySelector(".badge");
                 if (badge) {
-                    badge.remove(); // Remove the badge element
+                    badge.remove();
                 }
             }
         }
 
         // Send private message
-        // Send private message
         privateSendBtn.addEventListener("click", () => {
             const text = privateMessageInput.value;
             if (privateChatUser && text) {
-                // Emit the private message to the server
                 socket.emit("private-message", {
                     text: text,
                     to: privateChatUser.socketId,
                     username: username
                 });
 
-                // Create a message object to append it to the chat
                 const message = {
                     text: text,
                     username: username,
-                    timestamp: new Date().toLocaleTimeString(), // Adjust the timestamp format if needed
+                    timestamp: new Date().toLocaleTimeString(),
                 };
 
-                // Append the message immediately to the private messages area
                 appendPrivateMessage(message);
 
-                // Clear the input field
                 privateMessageInput.value = "";
+            }
+        });
+
+        imageBtn.addEventListener("click", () => {
+            imageUpload.click();
+        });
+
+        imageUpload.addEventListener("change", (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const base64Image = reader.result;
+                    socket.emit("user-message", { image: base64Image, type: "image" });
+                };
+                reader.readAsDataURL(file);
+                event.target.value = "";
             }
         });
 
@@ -290,8 +356,8 @@
             const isChatContainerClicked = document.getElementById("chat-container").contains(event.target);
 
             if (!isInputClicked && !isChatContainerClicked) {
-                typingIndicator.innerText = ""; // Clear typing indicator
-                socket.emit("stop-typing"); // Inform the server to stop typing
+                typingIndicator.innerText = "";
+                socket.emit("stop-typing");
             }
         });
 
@@ -305,16 +371,16 @@
                     "px-2",
                     "hover:bg-gray-300",
                     "cursor-pointer",
-                    "inline-flex", // Corrected from "inlineflex"
-                    "items-center", // Corrected from "itemscenter"
-                    "rounded-md", // Corrected from "rounded - md"
-                    "bg-gray-50", // Corrected from "bg - gray - 50"
+                    "inline-flex",
+                    "items-center",
+                    "rounded-md",
+                    "bg-gray-50",
                     "text-xs",
-                    "font-medium", // Corrected from "font - medium"
-                    "text-gray-600", // Corrected from "text - gray - 600"
+                    "font-medium",
+                    "text-gray-600",
                     "ring-1",
                     "ring-inset",
-                    "ring-gray-500/10" // Corrected from "ring - gray - 500 / 10"
+                    "ring-gray-500/10"
                 );
 
                 userDiv.innerText = user.username;
@@ -331,7 +397,7 @@
             notificationDiv.classList.add("notification");
             notificationDiv.innerText = `${username} has joined the chat.`;
             messages.appendChild(notificationDiv);
-            messages.scrollTop = messages.scrollHeight; // Auto-scroll
+            messages.scrollTop = messages.scrollHeight;
         });
 
         socket.on("user-left", (username) => {
@@ -339,7 +405,7 @@
             notificationDiv.classList.add("notification");
             notificationDiv.innerText = `${username} has left the chat.`;
             messages.appendChild(notificationDiv);
-            messages.scrollTop = messages.scrollHeight; // Auto-scroll
+            messages.scrollTop = messages.scrollHeight;
         });
 
 

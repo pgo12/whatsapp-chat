@@ -29,16 +29,28 @@ io.on("connection", (socket) => {
     io.emit("user-list", users); // Emit updated user list
   });
 
-  // Handle user messages
+  // Handle user messages (text and images)
   socket.on("user-message", (message) => {
-    const msg = {
-      text: message.text,
+    let msg = {
       type: message.type,
       username: socket.username,
       timestamp: new Date().toLocaleTimeString(),
     };
+
+    // Handle image message
+    if (message.type === "image") {
+      msg.image = message.image; // Attach the image data
+    } else {
+      // Handle text message
+      msg.text = message.text;
+    }
+
     io.emit("message", msg);
-    console.log(`[${msg.timestamp}] ${msg.username}: ${msg.text}`);
+    console.log(
+      `[${msg.timestamp}] ${msg.username}: ${
+        msg.type === "image" ? "Sent an image" : msg.text
+      }`
+    );
   });
 
   // Handle private messages
@@ -49,6 +61,11 @@ io.on("connection", (socket) => {
       timestamp: new Date().toLocaleTimeString(),
     };
     io.to(to).emit("private-message", msg); // Emit to the specific user
+  });
+
+  socket.on("unsend-message", ({ timestamp }) => {
+    // Broadcast to all clients to remove the message with the matching timestamp
+    io.emit("remove-message", timestamp);
   });
 
   // Typing indicator
