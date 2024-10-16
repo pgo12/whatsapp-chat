@@ -217,7 +217,6 @@
             // Append the private message only if it is from another user
             // Check if the private chat is currently open with this user
             if (privateChatUser && privateChatUser.username === message.username) {
-                appendPrivateMessage(message);
                 appendPrivateMessage(message); // Directly display the message
             } else {
                 // If the user is not in a private chat with this user, save the unread message
