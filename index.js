@@ -31,17 +31,18 @@ io.on("connection", (socket) => {
 
   // Handle user messages (text and images)
   socket.on("user-message", (message) => {
-    let msg = {
-      type: message.type,
+    const msg = {
       username: socket.username,
       timestamp: new Date().toLocaleTimeString(),
     };
 
     // Handle image message
     if (message.type === "image") {
+      msg.type = "image"; // Specify the type
       msg.image = message.image; // Attach the image data
     } else {
       // Handle text message
+      msg.type = "text"; // Specify the type
       msg.text = message.text;
     }
 
@@ -54,10 +55,10 @@ io.on("connection", (socket) => {
   });
 
   // Handle private messages
-  socket.on("private-message", ({ text, to, username }) => {
+  socket.on("private-message", ({ text, to }) => {
     const msg = {
       text: text,
-      username: username,
+      username: socket.username,
       timestamp: new Date().toLocaleTimeString(),
     };
     io.to(to).emit("private-message", msg); // Emit to the specific user
@@ -70,7 +71,7 @@ io.on("connection", (socket) => {
 
   // Typing indicator
   socket.on("typing", (data) => {
-    socket.broadcast.emit("typing", data);
+    socket.broadcast.emit("typing", { username: socket.username });
   });
 
   socket.on("stop-typing", () => {
